@@ -1,0 +1,18 @@
+{
+  "name": "heave-fleet-inspector",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Fleet management application for heavy equipment inspections",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=packages/api",
+    "build": "npm run build --workspaces",
+    "clean": "rm -rf node_modules packages/*/node_modules packages/*/dist"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  }
+}
