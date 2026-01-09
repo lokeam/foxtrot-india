@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { prisma } from './prisma';
 import { uploadPhoto, deletePhotos } from './storage';
 import { EquipmentStatus } from '@prisma/client';
+import { jobRouter } from './routers/job';
+import { serviceRecordRouter } from './routers/serviceRecord';
 
 const t = initTRPC.create();
 
@@ -23,6 +25,9 @@ const InspectionCreateInput = z.object({
 });
 
 export const appRouter = t.router({
+  job: jobRouter,
+  serviceRecord: serviceRecordRouter,
+
   equipment: t.router({
     list: t.procedure.query(async () => {
       const equipment = await prisma.equipment.findMany({

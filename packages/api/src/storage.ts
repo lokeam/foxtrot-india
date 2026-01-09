@@ -1,7 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
 import { env } from './env';
 
-export const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_KEY);
+// Configure Supabase client with custom storage configuration
+// The storage container expects routes at /object/bucket/file, not /storage/v1/object/bucket/file
+export const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_KEY, {
+  auth: {
+    persistSession: false,
+  },
+});
 
 export async function uploadPhoto(
   inspectionId: string,
