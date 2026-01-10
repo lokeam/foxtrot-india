@@ -14,6 +14,14 @@ enum EquipmentStatus {
   IN_REPAIR
 }
 
+enum JobStatus {
+  PENDING
+  ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
 model Equipment {
   id               String           @id @default(cuid())
   serialNumber     String           @unique
@@ -29,9 +37,68 @@ model Equipment {
   updatedAt        DateTime         @updatedAt
 
   inspections      Inspection[]
+  jobs             Job[]
 
   @@index([status])
   @@map("equipment")
+}
+
+model Job {
+  id               String        @id @default(cuid())
+  equipmentId      String
+  customerId       String
+  customerName     String
+  siteAddress      String        @default("")
+  contactName      String        @default("")
+  contactPhone     String        @default("")
+  contactEmail     String        @default("")
+  issueDescription String        @db.Text
+  status           JobStatus     @default(PENDING)
+  technicianId     String?
+  technicianName   String?
+  assignedAt       DateTime?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  equipment        Equipment     @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  serviceRecord    ServiceRecord?
+
+  @@index([status])
+  @@index([technicianId])
+  @@index([equipmentId])
+  @@map("jobs")
+}
+
+model ServiceRecord {
+  id                  String    @id @default(cuid())
+  jobId               String    @unique
+
+  beforePhotos        String[]
+  beforeNotes         String?   @db.Text
+  beforeEngineHours   Int
+  arrivedAt           DateTime
+  isCheckInComplete   Boolean   @default(false)
+
+  afterPhotos         String[]  @default([])
+  diagnosis           String?   @db.Text
+  workPerformed       String?   @db.Text
+  partsUsed           String?   @db.Text
+  afterEngineHours    Int?
+  completedAt         DateTime?
+  isJobComplete       Boolean   @default(false)
+
+  revisedAt           DateTime?
+  revisionCount       Int       @default(0)
+
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  job                 Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+  @@index([arrivedAt])
+  @@index([completedAt])
+  @@map("service_records")
 }
 
 model Inspection {
