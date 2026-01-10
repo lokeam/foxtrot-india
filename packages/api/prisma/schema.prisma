@@ -1,0 +1,55 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum EquipmentStatus {
+  OPERATIONAL
+  NEEDS_SERVICE
+  BROKEN
+  IN_REPAIR
+}
+
+model Equipment {
+  id               String           @id @default(cuid())
+  serialNumber     String           @unique
+  make             String
+  model            String
+  status           EquipmentStatus  @default(OPERATIONAL)
+  engineHours      Int
+  projectSite      String
+  latitude         Float?
+  longitude        Float?
+  lastInspectionAt DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  inspections      Inspection[]
+
+  @@index([status])
+  @@map("equipment")
+}
+
+model Inspection {
+  id            String           @id @default(cuid())
+  equipmentId   String
+  status        EquipmentStatus
+  engineHours   Int
+  notes         String?          @db.Text
+  photoUrls     String[]
+  inspectorName String
+  latitude      Float
+  longitude     Float
+  timestamp     DateTime         @default(now())
+  createdAt     DateTime         @default(now())
+
+  equipment     Equipment        @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+
+  @@index([equipmentId])
+  @@index([timestamp])
+  @@map("inspections")
+}
