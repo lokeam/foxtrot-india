@@ -1,0 +1,91 @@
+services:
+  db:
+    image: supabase/postgres:15.1.0.117
+    container_name: heave-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: heave_fleet
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - heave-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  storage:
+    image: supabase/storage-api:v0.40.4
+    container_name: heave-storage
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
+      SERVICE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU
+      POSTGREST_URL: http://rest:3000
+      PGRST_JWT_SECRET: super-secret-jwt-token-with-at-least-32-characters-long
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/heave_fleet
+      FILE_SIZE_LIMIT: 52428800
+      STORAGE_BACKEND: file
+      FILE_STORAGE_BACKEND_PATH: /var/lib/storage
+      TENANT_ID: stub
+      REGION: stub
+      GLOBAL_S3_BUCKET: stub
+    ports:
+      - "8000:5000"
+    volumes:
+      - storage_data:/var/lib/storage
+    networks:
+      - heave-network
+
+  rest:
+    image: postgrest/postgrest:v11.2.0
+    container_name: heave-rest
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGRST_DB_URI: postgresql://postgres:postgres@db:5432/heave_fleet
+      PGRST_DB_SCHEMAS: public,storage
+      PGRST_DB_ANON_ROLE: postgres
+      PGRST_JWT_SECRET: super-secret-jwt-token-with-at-least-32-characters-long
+    ports:
+      - "3000:3000"
+    networks:
+      - heave-network
+
+  api:
+    build: ./packages/api
+    container_name: heave-api
+    depends_on:
+      db:
+        condition: service_healthy
+      storage:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/heave_fleet
+      SUPABASE_URL: http://storage:5000
+      SUPABASE_SERVICE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU
+      NODE_ENV: development
+      PORT: 3001
+      CORS_ORIGIN: http://localhost:5173,exp://192.168.1.x:8081
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./packages/api/src:/app/src:ro
+      - ./packages/api/prisma:/app/prisma:ro
+    networks:
+      - heave-network
+
+networks:
+  heave-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  storage_data:
