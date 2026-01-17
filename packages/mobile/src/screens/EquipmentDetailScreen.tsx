@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   RefreshControl,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { trpc } from '../utils/trpc';
 import { EQUIPMENT_STATUS, EQUIPMENT_STATUS_COLORS } from '../config/constants';
 import type { EquipmentDetailScreenProps } from '../types/navigation';
@@ -128,9 +129,12 @@ export function EquipmentDetailScreen({
                   <Text style={styles.inspectionNotes}>{inspection.notes}</Text>
                 )}
                 {inspection.photoUrls.length > 0 && (
-                  <Text style={styles.inspectionPhotos}>
-                    📷 {inspection.photoUrls.length} photo(s)
-                  </Text>
+                  <View style={styles.inspectionPhotos}>
+                    <Ionicons name="camera" size={14} color="#6b7280" />
+                    <Text style={styles.inspectionPhotosText}>
+                      {inspection.photoUrls.length} photo(s)
+                    </Text>
+                  </View>
                 )}
               </View>
             ))
@@ -274,9 +278,14 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
   inspectionPhotos: {
-    fontSize: 14,
-    color: '#3b82f6',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     marginTop: 8,
+  },
+  inspectionPhotosText: {
+    fontSize: 14,
+    color: '#6b7280',
   },
   newInspectionButton: {
     backgroundColor: '#3b82f6',
