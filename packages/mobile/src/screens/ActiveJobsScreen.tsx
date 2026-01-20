@@ -175,7 +175,7 @@ export function ActiveJobsScreen({ navigation }: ActiveJobsScreenProps): JSX.Ele
   }
 
   const sections = [
-    ...(hasActiveJobs ? [{ title: 'Active Jobs', data: (activeJobs || []) as Job[] }] : []),
+    ...(hasActiveJobs ? [{ title: '', data: (activeJobs || []) as Job[] }] : []),
     ...(hasCompletedJobs ? [{ title: 'Completed Jobs', data: (completedJobs || []) as Job[] }] : []),
   ];
 
