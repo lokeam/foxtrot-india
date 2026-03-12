@@ -72,31 +72,47 @@ export function CheckInScreen({ route, navigation }: CheckInScreenProps): JSX.El
   const loadDraft = async (): Promise<void> => {
     try {
       const draftJson = await AsyncStorage.getItem(draftKey);
-      if (draftJson) {
-        const draft: CheckInDraft = JSON.parse(draftJson);
-        setHasDraft(true);
-        Alert.alert(
-          'Resume Draft?',
-          'You have unsaved changes. Would you like to resume?',
-          [
-            {
-              text: 'Discard',
-              style: 'destructive',
-              onPress: () => clearDraft(),
-            },
-            {
-              text: 'Resume',
-              onPress: () => {
-                setBeforeNotes(draft.beforeNotes);
-                setBeforeEngineHours(draft.beforeEngineHours);
-                setPhotos(draft.photos);
-              },
-            },
-          ]
-        );
+      if (!draftJson) return;
+
+      const draft: CheckInDraft = JSON.parse(draftJson);
+
+      const isZombieDraft = await checkIfZombieDraft();
+      if (isZombieDraft) {
+        await clearDraft();
+        return;
       }
+
+      setHasDraft(true);
+      Alert.alert(
+        'Resume Draft?',
+        'You have unsaved changes. Would you like to resume?',
+        [
+          {
+            text: 'Discard',
+            style: 'destructive',
+            onPress: () => clearDraft(),
+          },
+          {
+            text: 'Resume',
+            onPress: () => {
+              setBeforeNotes(draft.beforeNotes);
+              setBeforeEngineHours(draft.beforeEngineHours);
+              setPhotos(draft.photos);
+            },
+          },
+        ]
+      );
     } catch (error) {
       console.error('Error loading draft:', error);
+    }
+  };
+
+  const checkIfZombieDraft = async (): Promise<boolean> => {
+    try {
+      const currentJob = await utils.job.byId.fetch({ jobId });
+      return currentJob.status === 'IN_PROGRESS' || currentJob.status === 'COMPLETED';
+    } catch {
+      return false;
     }
   };
 

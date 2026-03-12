@@ -82,32 +82,48 @@ export function CompleteJobScreen({ route, navigation }: CompleteJobScreenProps)
   const loadDraft = async (): Promise<void> => {
     try {
       const draftJson = await AsyncStorage.getItem(draftKey);
-      if (draftJson) {
-        const draft: CompleteJobDraft = JSON.parse(draftJson);
-        Alert.alert(
-          'Resume Draft?',
-          'You have unsaved changes. Would you like to resume?',
-          [
-            {
-              text: 'Discard',
-              style: 'destructive',
-              onPress: () => clearDraft(),
-            },
-            {
-              text: 'Resume',
-              onPress: () => {
-                setDiagnosis(draft.diagnosis);
-                setWorkPerformed(draft.workPerformed);
-                setPartsUsed(draft.partsUsed);
-                setAfterEngineHours(draft.afterEngineHours);
-                setPhotos(draft.photos);
-              },
-            },
-          ]
-        );
+      if (!draftJson) return;
+
+      const draft: CompleteJobDraft = JSON.parse(draftJson);
+
+      const isZombieDraft = await checkIfZombieDraft();
+      if (isZombieDraft) {
+        await clearDraft();
+        return;
       }
+
+      Alert.alert(
+        'Resume Draft?',
+        'You have unsaved changes. Would you like to resume?',
+        [
+          {
+            text: 'Discard',
+            style: 'destructive',
+            onPress: () => clearDraft(),
+          },
+          {
+            text: 'Resume',
+            onPress: () => {
+              setDiagnosis(draft.diagnosis);
+              setWorkPerformed(draft.workPerformed);
+              setPartsUsed(draft.partsUsed);
+              setAfterEngineHours(draft.afterEngineHours);
+              setPhotos(draft.photos);
+            },
+          },
+        ]
+      );
     } catch (error) {
       console.error('Error loading draft:', error);
+    }
+  };
+
+  const checkIfZombieDraft = async (): Promise<boolean> => {
+    try {
+      const currentJob = await utils.job.byId.fetch({ jobId });
+      return currentJob.status === 'COMPLETED';
+    } catch {
+      return false;
     }
   };
 
