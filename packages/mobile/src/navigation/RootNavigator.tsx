@@ -12,6 +12,8 @@ import type { RootStackParamList } from '../types/navigation';
 import { COLORS } from '../config/constants';
 import { View, Platform, Text, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import ErrorBoundary from '../components/ErrorBoundary';
+import { reportCrash } from '../utils/crashReporter';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -42,6 +44,17 @@ const customHeaderStyles = StyleSheet.create({
   },
 });
 
+function makeOnError(screenName: string) {
+  return (error: Error, info: { componentStack: string }) => {
+    reportCrash({
+      message: error.message,
+      componentStack: info.componentStack,
+      screenName,
+      platform: Platform.OS,
+    });
+  };
+}
+
 export function RootNavigator() {
   return (
     <NavigationContainer>
@@ -64,53 +77,115 @@ export function RootNavigator() {
       >
         <Stack.Screen
           name="ActiveJobs"
-          component={ActiveJobsScreen}
           options={{
             header: () => <CustomHeader title="Active Jobs" />,
           }}
-        />
+        >
+          {(props) => (
+            <ErrorBoundary
+              resetKey={props.route.key}
+              onError={makeOnError('ActiveJobsScreen')}
+            >
+              <ActiveJobsScreen {...props} />
+            </ErrorBoundary>
+          )}
+        </Stack.Screen>
         <Stack.Screen
           name="JobDetail"
-          component={JobDetailScreen}
           options={{
             title: 'Job Details',
           }}
-        />
+        >
+          {(props) => (
+            <ErrorBoundary
+              resetKey={props.route.key}
+              onError={makeOnError('JobDetailScreen')}
+              onGoHome={() => props.navigation.navigate('ActiveJobs')}
+            >
+              <JobDetailScreen {...props} />
+            </ErrorBoundary>
+          )}
+        </Stack.Screen>
         <Stack.Screen
           name="CheckIn"
-          component={CheckInScreen}
           options={{
             title: 'Check-In',
           }}
-        />
+        >
+          {(props) => (
+            <ErrorBoundary
+              resetKey={props.route.key}
+              onError={makeOnError('CheckInScreen')}
+              onGoHome={() => props.navigation.navigate('ActiveJobs')}
+            >
+              <CheckInScreen {...props} />
+            </ErrorBoundary>
+          )}
+        </Stack.Screen>
         <Stack.Screen
           name="CompleteJob"
-          component={CompleteJobScreen}
           options={{
             title: 'Complete Job',
           }}
-        />
+        >
+          {(props) => (
+            <ErrorBoundary
+              resetKey={props.route.key}
+              onError={makeOnError('CompleteJobScreen')}
+              onGoHome={() => props.navigation.navigate('ActiveJobs')}
+            >
+              <CompleteJobScreen {...props} />
+            </ErrorBoundary>
+          )}
+        </Stack.Screen>
         <Stack.Screen
           name="EquipmentList"
-          component={EquipmentListScreen}
           options={{
             header: () => <CustomHeader title="Fleet Equipment" />,
           }}
-        />
+        >
+          {(props) => (
+            <ErrorBoundary
+              resetKey={props.route.key}
+              onError={makeOnError('EquipmentListScreen')}
+              onGoHome={() => props.navigation.navigate('ActiveJobs')}
+            >
+              <EquipmentListScreen {...props} />
+            </ErrorBoundary>
+          )}
+        </Stack.Screen>
         <Stack.Screen
           name="EquipmentDetail"
-          component={EquipmentDetailScreen}
           options={{
             title: 'Equipment Details',
           }}
-        />
+        >
+          {(props) => (
+            <ErrorBoundary
+              resetKey={props.route.key}
+              onError={makeOnError('EquipmentDetailScreen')}
+              onGoHome={() => props.navigation.navigate('ActiveJobs')}
+            >
+              <EquipmentDetailScreen {...props} />
+            </ErrorBoundary>
+          )}
+        </Stack.Screen>
         <Stack.Screen
           name="InspectionForm"
-          component={InspectionFormScreen}
           options={{
             title: 'New Inspection',
           }}
-        />
+        >
+          {(props) => (
+            <ErrorBoundary
+              resetKey={props.route.key}
+              onError={makeOnError('InspectionFormScreen')}
+              onGoHome={() => props.navigation.navigate('ActiveJobs')}
+            >
+              <InspectionFormScreen {...props} />
+            </ErrorBoundary>
+          )}
+        </Stack.Screen>
       </Stack.Navigator>
     </NavigationContainer>
   );

@@ -81,6 +81,34 @@ app.post('/upload', async (req, res) => {
   }
 });
 
+app.post('/crash-report', async (req, res) => {
+  try {
+    const { message, componentStack, screenName, platform, appVersion } = req.body;
+
+    if (!message || typeof message !== 'string') {
+      return res.status(400).json({ success: false, id: null });
+    }
+    if (!componentStack || typeof componentStack !== 'string') {
+      return res.status(400).json({ success: false, id: null });
+    }
+
+    const report = await prisma.crashReport.create({
+      data: {
+        message: message.slice(0, 2000),
+        componentStack: componentStack.slice(0, 5000),
+        screenName: screenName ? String(screenName).slice(0, 200) : null,
+        platform: platform ? String(platform).slice(0, 50) : null,
+        appVersion: appVersion ? String(appVersion).slice(0, 50) : null,
+      },
+    });
+
+    return res.json({ success: true, id: report.id });
+  } catch (error) {
+    console.error('Crash report error:', error);
+    return res.json({ success: false, id: null });
+  }
+});
+
 app.use(
   '/trpc',
   createExpressMiddleware({

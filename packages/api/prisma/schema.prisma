@@ -120,3 +120,17 @@ model Inspection {
   @@index([timestamp])
   @@map("inspections")
 }
+
+model CrashReport {
+  id             String   @id @default(cuid())
+  message        String
+  componentStack String
+  screenName     String?
+  platform       String?
+  appVersion     String?
+  createdAt      DateTime @default(now())
+  reviewed       Boolean  @default(false)
+
+  @@index([createdAt])
+  @@index([reviewed])
+}
