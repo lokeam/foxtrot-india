@@ -4,6 +4,7 @@ import { createExpressMiddleware } from '@trpc/server/adapters/express';
 import { appRouter } from './router';
 import { prisma } from './prisma';
 import { env } from './env';
+import { deletePhotos } from './storage';
 
 const app = express();
 
@@ -106,6 +107,30 @@ app.post('/crash-report', async (req, res) => {
   } catch (error) {
     console.error('Crash report error:', error);
     return res.json({ success: false, id: null });
+  }
+});
+
+app.delete('/cleanup-photos', async (req, res) => {
+  try {
+    const { urls } = req.body;
+
+    if (!Array.isArray(urls)) {
+      return res.status(400).json({ error: 'urls must be an array of strings' });
+    }
+
+    if (urls.length === 0) {
+      return res.status(200).json({ success: true, deleted: 0 });
+    }
+
+    if (urls.length > 20) {
+      return res.status(400).json({ error: 'maximum 20 urls per request' });
+    }
+
+    await deletePhotos(urls);
+    return res.status(200).json({ success: true, deleted: urls.length });
+  } catch (error) {
+    console.error('Cleanup photos error:', error);
+    return res.status(200).json({ success: false, deleted: 0 });
   }
 });
 

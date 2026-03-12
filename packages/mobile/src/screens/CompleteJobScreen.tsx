@@ -200,6 +200,23 @@ export function CompleteJobScreen({ route, navigation }: CompleteJobScreenProps)
     setPhotos(photos.filter((_, i) => i !== index));
   };
 
+  // TODO: Architectural refactor (Option B)
+  // The current photo upload pattern — uploading at submission time — creates an orphan risk:
+  // if any photo fails, previously uploaded photos have no database reference and accumulate
+  // in Supabase Storage. Option A (this fix) mitigates this with a best-effort cleanup call
+  // in the catch block, but cleanup can itself fail if the network is unavailable.
+  //
+  // The correct long-term fix is to upload photos as the technician takes them, not at
+  // submission time. Each photo uploads immediately on selection and returns a URL that is
+  // stored in component state. By the time the technician taps Submit, all photos are already
+  // on the server. The submission sends only metadata — no photo uploads in the critical path,
+  // no orphan risk, no cleanup needed.
+  //
+  // This also eliminates the duplicate uploadPhoto function between CheckInScreen and
+  // CompleteJobScreen, which should become a shared utility at that point.
+  //
+  // Deferred: requires refactoring the photo picker flow, form state model, and server
+  // endpoint to accept pre-uploaded URLs rather than base64 payloads.
   const uploadPhoto = async (photo: PhotoAsset, index: number): Promise<string> => {
     if (!photo.uri.startsWith('http')) {
       if (!photo.base64) {
@@ -274,8 +291,8 @@ export function CompleteJobScreen({ route, navigation }: CompleteJobScreenProps)
   const submitCompletion = async (): Promise<void> => {
     setIsSubmitting(true);
 
+    const photoUrls: string[] = [];
     try {
-      const photoUrls: string[] = [];
       for (let i = 0; i < photos.length; i++) {
         const url = await uploadPhoto(photos[i], i);
         photoUrls.push(url);
@@ -325,6 +342,16 @@ export function CompleteJobScreen({ route, navigation }: CompleteJobScreenProps)
         ]);
       }
     } catch (error: any) {
+      if (photoUrls.length > 0) {
+        fetch(API_URL.replace('/trpc', '/cleanup-photos'), {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ urls: photoUrls }),
+        }).catch(() => {
+          // cleanup failed — photos remain orphaned
+          // this is acceptable: cleanup is best-effort
+        });
+      }
       console.error('Complete job error:', error);
       Alert.alert(
         isEditMode ? 'Update Failed' : 'Completion Failed',

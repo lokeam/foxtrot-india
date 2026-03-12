@@ -560,6 +560,227 @@ describe('CheckInScreen', () => {
     });
   });
 
+  describe('Orphaned Photo Cleanup', () => {
+    const setupMocks = () => {
+      (trpc.job.byId.useQuery as jest.Mock).mockReturnValue(
+        createMockQuery({ data: mockJob })
+      );
+      (trpc.serviceRecord.checkIn.useMutation as jest.Mock).mockReturnValue(
+        createMockMutation({})
+      );
+      (trpc.serviceRecord.updateCheckIn.useMutation as jest.Mock).mockReturnValue(
+        createMockMutation({})
+      );
+      (trpc.useUtils as jest.Mock).mockReturnValue({
+        job: {
+          byId: { invalidate: jest.fn() },
+          listActive: { invalidate: jest.fn() },
+          listCompleted: { invalidate: jest.fn() },
+        },
+        serviceRecord: { recent: { invalidate: jest.fn() } },
+      });
+    };
+
+    const addPhotosAndFillForm = async (photoCount: number) => {
+      for (let i = 0; i < photoCount; i++) {
+        (ImagePicker.launchImageLibraryAsync as jest.Mock).mockResolvedValueOnce({
+          canceled: false,
+          assets: [{ uri: `photo${i}.jpg`, base64: `base64data${i}` }],
+        });
+
+        const choosePhotoButton = screen.getByText(/choose photo/i);
+        fireEvent.press(choosePhotoButton);
+
+        await waitFor(() => {
+          expect(ImagePicker.launchImageLibraryAsync).toHaveBeenCalledTimes(i + 1);
+        });
+      }
+
+      const hoursInput = screen.getByPlaceholderText(/current engine hours/i);
+      fireEvent.changeText(hoursInput, '1250');
+    };
+
+    it('calls cleanup fetch when first photo succeeds and second fails', async () => {
+      setupMocks();
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+
+      let uploadCallCount = 0;
+      global.fetch = jest.fn().mockImplementation((url: string) => {
+        if (typeof url === 'string' && url.includes('/upload')) {
+          uploadCallCount++;
+          if (uploadCallCount === 1) {
+            return Promise.resolve({
+              ok: true,
+              json: () => Promise.resolve({ url: 'http://localhost:8000/photo0.jpg' }),
+            });
+          }
+          return Promise.resolve({
+            ok: false,
+            json: () => Promise.resolve({ error: 'Upload failed' }),
+          });
+        }
+        if (typeof url === 'string' && url.includes('/cleanup-photos')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ success: true, deleted: 1 }),
+          });
+        }
+        return Promise.resolve({ ok: false });
+      });
+
+      renderWithProviders(
+        <CheckInScreen route={mockRoute} navigation={mockNavigation as any} />
+      );
+
+      await addPhotosAndFillForm(2);
+
+      const submitButton = screen.getByText(/complete check-in/i);
+      fireEvent.press(submitButton);
+
+      await waitFor(() => {
+        expect(global.fetch).toHaveBeenCalledWith(
+          expect.stringContaining('/cleanup-photos'),
+          expect.objectContaining({
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ urls: ['http://localhost:8000/photo0.jpg'] }),
+          })
+        );
+      });
+
+      await waitFor(() => {
+        expect(Alert.alert).toHaveBeenCalledWith(
+          'Check-In Failed',
+          'Failed to upload photo'
+        );
+      });
+
+      consoleSpy.mockRestore();
+    });
+
+    it('does not call cleanup when zero photos uploaded before failure', async () => {
+      setupMocks();
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+
+      global.fetch = jest.fn().mockImplementation((url: string) => {
+        if (typeof url === 'string' && url.includes('/upload')) {
+          return Promise.resolve({
+            ok: false,
+            json: () => Promise.resolve({ error: 'Upload failed' }),
+          });
+        }
+        return Promise.resolve({ ok: true });
+      });
+
+      renderWithProviders(
+        <CheckInScreen route={mockRoute} navigation={mockNavigation as any} />
+      );
+
+      await addPhotosAndFillForm(1);
+
+      const submitButton = screen.getByText(/complete check-in/i);
+      fireEvent.press(submitButton);
+
+      await waitFor(() => {
+        expect(Alert.alert).toHaveBeenCalledWith(
+          'Check-In Failed',
+          'Failed to upload photo'
+        );
+      });
+
+      expect(global.fetch).not.toHaveBeenCalledWith(
+        expect.stringContaining('/cleanup-photos'),
+        expect.anything()
+      );
+
+      consoleSpy.mockRestore();
+    });
+
+    it('does not call cleanup when all photos succeed', async () => {
+      const mockMutateAsync = jest.fn().mockResolvedValue({
+        id: 'sr_123',
+        jobId: 'job_123',
+      });
+
+      setupMocks();
+      (trpc.serviceRecord.checkIn.useMutation as jest.Mock).mockReturnValue(
+        createMockMutation({ mutateAsync: mockMutateAsync })
+      );
+
+      global.fetch = jest.fn().mockImplementation((url: string) => {
+        if (typeof url === 'string' && url.includes('/upload')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ url: 'http://localhost:8000/photo.jpg' }),
+          });
+        }
+        return Promise.resolve({ ok: true });
+      });
+
+      renderWithProviders(
+        <CheckInScreen route={mockRoute} navigation={mockNavigation as any} />
+      );
+
+      await addPhotosAndFillForm(1);
+
+      const submitButton = screen.getByText(/complete check-in/i);
+      fireEvent.press(submitButton);
+
+      await waitFor(() => {
+        expect(mockMutateAsync).toHaveBeenCalled();
+      });
+
+      expect(global.fetch).not.toHaveBeenCalledWith(
+        expect.stringContaining('/cleanup-photos'),
+        expect.anything()
+      );
+    });
+
+    it('cleanup fetch failure does not affect user-facing error flow', async () => {
+      setupMocks();
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+
+      let uploadCallCount = 0;
+      global.fetch = jest.fn().mockImplementation((url: string) => {
+        if (typeof url === 'string' && url.includes('/upload')) {
+          uploadCallCount++;
+          if (uploadCallCount === 1) {
+            return Promise.resolve({
+              ok: true,
+              json: () => Promise.resolve({ url: 'http://localhost:8000/photo0.jpg' }),
+            });
+          }
+          return Promise.resolve({
+            ok: false,
+            json: () => Promise.resolve({ error: 'Upload failed' }),
+          });
+        }
+        if (typeof url === 'string' && url.includes('/cleanup-photos')) {
+          return Promise.reject(new Error('Network error'));
+        }
+        return Promise.resolve({ ok: false });
+      });
+
+      renderWithProviders(
+        <CheckInScreen route={mockRoute} navigation={mockNavigation as any} />
+      );
+
+      await addPhotosAndFillForm(2);
+
+      const submitButton = screen.getByText(/complete check-in/i);
+      fireEvent.press(submitButton);
+
+      await waitFor(() => {
+        expect(Alert.alert).toHaveBeenCalledWith(
+          'Check-In Failed',
+          'Failed to upload photo'
+        );
+      });
+
+      consoleSpy.mockRestore();
+    });
+  });
+
   describe('Submission Flow', () => {
     it('calls serviceRecord.checkIn mutation with correct data', async () => {
       const mockMutateAsync = jest.fn().mockResolvedValue({

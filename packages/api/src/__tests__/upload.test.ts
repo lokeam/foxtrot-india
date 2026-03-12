@@ -2,6 +2,11 @@ import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
 import request from 'supertest';
 import express from 'express';
 import cors from 'cors';
+import { deletePhotos } from '../storage';
+
+vi.mock('../storage', () => ({
+  deletePhotos: vi.fn(),
+}));
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // Note: Type assertions (as any) are necessary when mocking fetch responses
@@ -285,5 +290,107 @@ describe('POST /upload', () => {
 
     // Assert - Express returns 413 for payloads exceeding the limit
     expect(response2.status).toBe(413);
+  });
+});
+
+describe('DELETE /cleanup-photos', () => {
+  let app: express.Application;
+  const mockDeletePhotos = deletePhotos as unknown as ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    app = express();
+    app.use(cors());
+    app.use(express.json({ limit: '10mb' }));
+
+    app.delete('/cleanup-photos', async (req, res) => {
+      try {
+        const { urls } = req.body;
+
+        if (!Array.isArray(urls)) {
+          return res.status(400).json({ error: 'urls must be an array of strings' });
+        }
+
+        if (urls.length === 0) {
+          return res.status(200).json({ success: true, deleted: 0 });
+        }
+
+        if (urls.length > 20) {
+          return res.status(400).json({ error: 'maximum 20 urls per request' });
+        }
+
+        await deletePhotos(urls);
+        return res.status(200).json({ success: true, deleted: urls.length });
+      } catch (error) {
+        console.error('Cleanup photos error:', error);
+        return res.status(200).json({ success: false, deleted: 0 });
+      }
+    });
+
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  test('returns 200 and calls deletePhotos with provided URLs', async () => {
+    mockDeletePhotos.mockResolvedValueOnce(undefined);
+
+    const response = await request(app)
+      .delete('/cleanup-photos')
+      .send({ urls: ['https://example.com/photo1.jpg'] });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ success: true, deleted: 1 });
+    expect(mockDeletePhotos).toHaveBeenCalledWith(['https://example.com/photo1.jpg']);
+  });
+
+  test('returns 200 with deleted: 0 for empty array', async () => {
+    const response = await request(app)
+      .delete('/cleanup-photos')
+      .send({ urls: [] });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ success: true, deleted: 0 });
+    expect(mockDeletePhotos).not.toHaveBeenCalled();
+  });
+
+  test('returns 400 for missing urls field', async () => {
+    const response = await request(app)
+      .delete('/cleanup-photos')
+      .send({});
+
+    expect(response.status).toBe(400);
+    expect(response.body).toHaveProperty('error');
+  });
+
+  test('returns 400 for urls not an array', async () => {
+    const response = await request(app)
+      .delete('/cleanup-photos')
+      .send({ urls: 'not-an-array' });
+
+    expect(response.status).toBe(400);
+  });
+
+  test('returns 400 when urls exceeds 20 items', async () => {
+    const urls = Array.from({ length: 21 }, (_, i) => `https://example.com/photo${i}.jpg`);
+
+    const response = await request(app)
+      .delete('/cleanup-photos')
+      .send({ urls });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('maximum 20 urls per request');
+  });
+
+  test('returns 200 with success: false when deletePhotos throws', async () => {
+    mockDeletePhotos.mockRejectedValueOnce(new Error('storage error'));
+
+    const response = await request(app)
+      .delete('/cleanup-photos')
+      .send({ urls: ['https://example.com/photo1.jpg'] });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ success: false, deleted: 0 });
   });
 });
